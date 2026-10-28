@@ -191,6 +191,10 @@ data "aws_iam_policy_document" "workload_dev_permissions" {
       "iam:AttachRolePolicy", "iam:DetachRolePolicy",
       "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies", "iam:ListRolePolicies",
+      # The provider's role-delete path checks for attached instance profiles first,
+      # even when none were ever created - found live, mid-teardown, when deleting
+      # workload-dev-app-role failed without this.
+      "iam:ListInstanceProfilesForRole",
     ]
     resources = ["arn:aws:iam::${var.workload_dev_account_id}:role/workload-dev-*"]
   }
