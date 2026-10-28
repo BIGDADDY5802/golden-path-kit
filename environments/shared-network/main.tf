@@ -3,6 +3,7 @@ locals {
     Owner       = "jerome-hunter"
     Environment = "shared-network"
     Project     = "golden-path-kit"
+    ManagedBy   = "golden-path-kit-pipeline"
   }
 }
 
