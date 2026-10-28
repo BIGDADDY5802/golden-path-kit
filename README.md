@@ -1,5 +1,11 @@
 # golden-path-kit
 
+[![Plan](https://github.com/BIGDADDY5802/golden-path-kit/actions/workflows/plan.yml/badge.svg)](https://github.com/BIGDADDY5802/golden-path-kit/actions/workflows/plan.yml)
+[![Apply](https://github.com/BIGDADDY5802/golden-path-kit/actions/workflows/apply.yml/badge.svg)](https://github.com/BIGDADDY5802/golden-path-kit/actions/workflows/apply.yml)
+[![Drift Detection](https://github.com/BIGDADDY5802/golden-path-kit/actions/workflows/drift-detect.yml/badge.svg)](https://github.com/BIGDADDY5802/golden-path-kit/actions/workflows/drift-detect.yml)
+[![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.5-623CE4?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![AWS](https://img.shields.io/badge/AWS-multi--account-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/)
+
 A small, real, verified multi-account Terraform platform: reusable modules, isolated remote state, OIDC-federated CI/CD with a genuine approval gate, policy-as-code enforcement, and drift detection with alerting — all tested against live AWS, not just written and assumed to work.
 
 Built as a portfolio project for an AWS + Terraform Engineer role. Every claim below was actually run and verified during development, including three separate "break it on purpose and confirm the safety net catches it" tests.
