@@ -46,8 +46,10 @@ resource "aws_iam_role" "github_actions" {
 
 data "aws_iam_policy_document" "github_actions_assume" {
   statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
+    effect = "Allow"
+    # TagSession must be granted on both sides of an assume-role call: the target's
+    # trust policy (fixed separately) AND the caller's own identity-based policy here.
+    actions = ["sts:AssumeRole", "sts:TagSession"]
     resources = [
       aws_iam_role.shared_network_ci_deploy.arn,
       aws_iam_role.workload_dev_ci_deploy.arn,
