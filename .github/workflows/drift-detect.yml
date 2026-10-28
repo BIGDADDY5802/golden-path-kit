@@ -20,9 +20,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # terraform_wrapper must be disabled here: the wrapper script captures
+      # stdout/stderr into step outputs but does not propagate the real process exit
+      # code through $? - it always reports its own success, which silently swallows
+      # the "2 = drift" signal from -detailed-exitcode below.
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.17.0"
+          terraform_wrapper: false
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -46,25 +51,26 @@ jobs:
 
       - name: Show drift diff
         if: steps.plan.outputs.exitcode == '2'
-        id: show
         working-directory: environments/${{ matrix.environment }}
-        run: terraform show -no-color tfplan.binary
+        run: terraform show -no-color tfplan.binary > plan_diff.txt
 
       - name: Publish drift alert
         if: steps.plan.outputs.exitcode == '2'
         working-directory: environments/${{ matrix.environment }}
         env:
-          PLAN_DIFF: ${{ steps.show.outputs.stdout }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          {
+            echo "Terraform drift detected in ${{ matrix.environment }} (golden-path-kit)."
+            echo ""
+            echo "Run: ${RUN_URL}"
+            echo ""
+            cat plan_diff.txt
+          } > sns_message.txt
           aws sns publish \
             --topic-arn arn:aws:sns:us-east-1:778185677715:golden-path-drift-alerts \
             --subject "Terraform drift detected: ${{ matrix.environment }}" \
-            --message "Terraform drift detected in ${{ matrix.environment }} (golden-path-kit).
-
-          Run: ${RUN_URL}
-
-          ${PLAN_DIFF}"
+            --message file://sns_message.txt
 
       - name: Fail the job if drift or an error was found
         if: steps.plan.outputs.exitcode == '1' || steps.plan.outputs.exitcode == '2'
