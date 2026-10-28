@@ -23,10 +23,16 @@ data "aws_iam_policy_document" "github_oidc_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
+    # Two patterns because GitHub now supports an "immutable IDs" sub-claim format
+    # (repo:org@ORG_ID/repo@REPO_ID:...) alongside the classic repo:org/repo:... format,
+    # depending on a per-repo opt-in setting — this trusts either.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
+      values = [
+        "repo:${var.github_org}/${var.github_repo}:*",
+        "repo:${var.github_org}@*/${var.github_repo}@*:*",
+      ]
     }
   }
 }
