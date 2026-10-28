@@ -1,0 +1,77 @@
+name: Drift Detection
+
+on:
+  schedule:
+    # 13:00 UTC daily
+    - cron: "0 13 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect:
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [shared-network, workload-dev]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::778185677715:role/golden-path-github-actions
+          aws-region: us-east-1
+
+      - name: Terraform init
+        run: terraform init -input=false
+        working-directory: environments/${{ matrix.environment }}
+
+      # detailed-exitcode: 0 = no drift, 1 = real error, 2 = drift present.
+      # set +e so a drift exit code doesn't abort the step before we can branch on it.
+      - name: Terraform plan (detect drift)
+        id: plan
+        working-directory: environments/${{ matrix.environment }}
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -input=false -no-color -out=tfplan.binary
+          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Show drift diff
+        if: steps.plan.outputs.exitcode == '2'
+        id: show
+        working-directory: environments/${{ matrix.environment }}
+        run: terraform show -no-color tfplan.binary
+
+      - name: Publish drift alert
+        if: steps.plan.outputs.exitcode == '2'
+        working-directory: environments/${{ matrix.environment }}
+        env:
+          PLAN_DIFF: ${{ steps.show.outputs.stdout }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          aws sns publish \
+            --topic-arn arn:aws:sns:us-east-1:778185677715:golden-path-drift-alerts \
+            --subject "Terraform drift detected: ${{ matrix.environment }}" \
+            --message "Terraform drift detected in ${{ matrix.environment }} (golden-path-kit).
+
+          Run: ${RUN_URL}
+
+          ${PLAN_DIFF}"
+
+      - name: Fail the job if drift or an error was found
+        if: steps.plan.outputs.exitcode == '1' || steps.plan.outputs.exitcode == '2'
+        run: |
+          if [ "${{ steps.plan.outputs.exitcode }}" = "1" ]; then
+            echo "::error::terraform plan failed for ${{ matrix.environment }}"
+          else
+            echo "::error::drift detected in ${{ matrix.environment }} - alert published to SNS"
+          fi
+          exit 1
