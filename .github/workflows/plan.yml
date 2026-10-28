@@ -51,11 +51,35 @@ jobs:
         run: terraform validate
         working-directory: environments/${{ matrix.environment }}
 
+      # aquasecurity/tfsec-action's soft_fail:false does not actually fail the step
+      # regardless of findings (verified live: a run with a real CRITICAL public-ingress
+      # finding still reported step success). No maintained setup-tfsec action exists
+      # either (tfsec is being deprecated in favor of Trivy) - installing the binary
+      # directly from GitHub Releases and running it ourselves so its own exit code is
+      # trusted, the same fix pattern as the terraform_wrapper issue in drift-detect.yml.
+      # Pinned to a known release, fetched directly - not resolved via the GitHub API's
+      # "latest" endpoint. That approach failed on the first live attempt: the
+      # unauthenticated API call hit GitHub's low per-IP rate limit on a shared runner,
+      # returned an error body instead of release JSON, and the "binary" that got
+      # chmod +x'd and executed was actually that error text (syntax error, not found).
+      - name: Install tfsec
+        run: |
+          sudo curl -sSL -o /usr/local/bin/tfsec \
+            https://github.com/aquasecurity/tfsec/releases/download/v1.28.14/tfsec-linux-amd64
+          sudo chmod +x /usr/local/bin/tfsec
+          tfsec --version
+
+      # Excludes are accepted-by-design choices for this lab environment, not gaps:
+      #   no-public-egress-sgr        - modules/security-group's default egress is 0.0.0.0/0 by design
+      #   no-public-ip-subnet         - no NAT Gateway (cost control), so public subnets need public IPs
+      #   enable-bucket-logging       - no real data in these demo buckets
+      #   require-vpc-flow-logs       - no real traffic to audit in this demo VPC
+      # Anything else, including public ingress, is fully enforced.
       - name: tfsec scan
-        uses: aquasecurity/tfsec-action@v1.0.3
-        with:
-          working_directory: environments/${{ matrix.environment }}
-          soft_fail: false
+        working-directory: environments/${{ matrix.environment }}
+        run: |
+          tfsec . --no-color \
+            --exclude aws-ec2-no-public-egress-sgr,aws-ec2-no-public-ip-subnet,aws-s3-enable-bucket-logging,aws-ec2-require-vpc-flow-logs-for-all-vpcs
 
       - name: Terraform plan
         id: plan
