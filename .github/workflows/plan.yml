@@ -57,12 +57,15 @@ jobs:
       # either (tfsec is being deprecated in favor of Trivy) - installing the binary
       # directly from GitHub Releases and running it ourselves so its own exit code is
       # trusted, the same fix pattern as the terraform_wrapper issue in drift-detect.yml.
+      # Pinned to a known release, fetched directly - not resolved via the GitHub API's
+      # "latest" endpoint. That approach failed on the first live attempt: the
+      # unauthenticated API call hit GitHub's low per-IP rate limit on a shared runner,
+      # returned an error body instead of release JSON, and the "binary" that got
+      # chmod +x'd and executed was actually that error text (syntax error, not found).
       - name: Install tfsec
         run: |
-          tfsec_url=$(curl -s https://api.github.com/repos/aquasecurity/tfsec/releases/latest \
-            | grep '"browser_download_url":.*tfsec-linux-amd64"' \
-            | cut -d '"' -f 4)
-          sudo curl -sSL -o /usr/local/bin/tfsec "$tfsec_url"
+          sudo curl -sSL -o /usr/local/bin/tfsec \
+            https://github.com/aquasecurity/tfsec/releases/download/v1.28.14/tfsec-linux-amd64
           sudo chmod +x /usr/local/bin/tfsec
           tfsec --version
 
