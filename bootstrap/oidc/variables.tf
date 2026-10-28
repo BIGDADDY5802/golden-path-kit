@@ -25,3 +25,9 @@ variable "local_admin_user_arn" {
   type        = string
   default     = "arn:aws:iam::778185677715:user/awscli"
 }
+
+variable "alert_email" {
+  description = "Email address subscribed to the drift-detection SNS topic"
+  type        = string
+  default     = "firstofmyname5802@gmail.com"
+}

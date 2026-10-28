@@ -229,3 +229,71 @@ resource "aws_iam_role_policy" "workload_dev_permissions" {
   role     = aws_iam_role.workload_dev_ci_deploy.name
   policy   = data.aws_iam_policy_document.workload_dev_permissions.json
 }
+
+# --- drift-detection alerting: one topic in the management account, both per-account
+#     deploy roles can publish to it cross-account via the topic's own resource policy. ---
+
+resource "aws_sns_topic" "drift_alerts" {
+  name = "golden-path-drift-alerts"
+}
+
+resource "aws_sns_topic_subscription" "drift_alerts_email" {
+  topic_arn = aws_sns_topic.drift_alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+}
+
+data "aws_iam_policy_document" "drift_alerts_topic_policy" {
+  statement {
+    sid    = "AllowCiDeployRolesToPublish"
+    effect = "Allow"
+
+    principals {
+      type = "AWS"
+      identifiers = [
+        aws_iam_role.shared_network_ci_deploy.arn,
+        aws_iam_role.workload_dev_ci_deploy.arn,
+      ]
+    }
+
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.drift_alerts.arn]
+  }
+}
+
+resource "aws_sns_topic_policy" "drift_alerts" {
+  arn    = aws_sns_topic.drift_alerts.arn
+  policy = data.aws_iam_policy_document.drift_alerts_topic_policy.json
+}
+
+data "aws_iam_policy_document" "shared_network_sns_publish" {
+  statement {
+    sid       = "DriftAlertPublish"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.drift_alerts.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "shared_network_sns_publish" {
+  provider = aws.shared_network
+  name     = "golden-path-drift-alert-publish"
+  role     = aws_iam_role.shared_network_ci_deploy.name
+  policy   = data.aws_iam_policy_document.shared_network_sns_publish.json
+}
+
+data "aws_iam_policy_document" "workload_dev_sns_publish" {
+  statement {
+    sid       = "DriftAlertPublish"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.drift_alerts.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "workload_dev_sns_publish" {
+  provider = aws.workload_dev
+  name     = "golden-path-drift-alert-publish"
+  role     = aws_iam_role.workload_dev_ci_deploy.name
+  policy   = data.aws_iam_policy_document.workload_dev_sns_publish.json
+}

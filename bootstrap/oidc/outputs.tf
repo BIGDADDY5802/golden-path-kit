@@ -9,3 +9,7 @@ output "shared_network_ci_deploy_role_arn" {
 output "workload_dev_ci_deploy_role_arn" {
   value = aws_iam_role.workload_dev_ci_deploy.arn
 }
+
+output "drift_alerts_topic_arn" {
+  value = aws_sns_topic.drift_alerts.arn
+}
