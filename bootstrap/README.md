@@ -1,6 +1,6 @@
 # Bootstrap
 
-One-time setup that has to exist before anything in `modules/` or `environments/` can use a remote backend. Both steps here intentionally use **local** state — bootstrapping remote state with remote state is the classic chicken-and-egg, so these two folders are the deliberate exception.
+One-time setup that has to exist before anything in `modules/` or `environments/` can use a remote backend or a CI/CD pipeline. All three steps here intentionally use **local** state — bootstrapping remote state (or the identities that will use it) with remote state is the classic chicken-and-egg, so this folder is the deliberate exception.
 
 ## accounts/
 
@@ -25,6 +25,16 @@ Assumes the auto-created `OrganizationAccountAccessRole` in each member account 
 | workload-dev | `golden-path-tf-state-556166822095` | `terraform-locks` |
 
 `environments/<account>/backend.tf` (next milestone) will point at these.
+
+## oidc/
+
+Creates the GitHub Actions OIDC trust chain and replaces `OrganizationAccountAccessRole` with a narrow, purpose-built role for all *routine* Terraform runs (both CI and local):
+
+- References (does not create) the GitHub OIDC provider already present in this account from an unrelated prior Terraform project — AWS allows only one `token.actions.githubusercontent.com` provider per account, so this is a `data` source, never a `resource`.
+- `golden-path-github-actions` (management account) — the OIDC entry point. Trust is scoped to `repo:BIGDADDY5802/golden-path-kit:*` via the GitHub token's `sub` claim. It has exactly one permission: `sts:AssumeRole` on the two deploy roles below. Nothing else.
+- `golden-path-ci-deploy` (shared-network and workload-dev, one each) — the actual working identity. Trusted by both `golden-path-github-actions` (for CI) and the local admin IAM user (for human runs), so CI and local Terraform use the identical identity and permission set. Permissions are scoped to exactly what each account's modules create (EC2 networking, plus IAM roles and S3 buckets matching a `workload-dev-*` / `golden-path-workload-dev-*` naming pattern in workload-dev) plus read/write on that account's own state bucket and lock table — no `iam:*`, no `s3:*`, no `AdministratorAccess`.
+
+`environments/*/provider.tf` and `backend.tf` point at `golden-path-ci-deploy`, not `OrganizationAccountAccessRole`, for all day-to-day use. The org access role still exists as break-glass, but nothing in this project's regular workflow uses it anymore.
 
 ## Cost note
 
