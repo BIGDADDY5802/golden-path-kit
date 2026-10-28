@@ -53,10 +53,18 @@ jobs:
 
       # aquasecurity/tfsec-action's soft_fail:false does not actually fail the step
       # regardless of findings (verified live: a run with a real CRITICAL public-ingress
-      # finding still reported step success). Installing the binary directly and running
-      # it ourselves so its own exit code is trusted, the same fix pattern as the
-      # terraform_wrapper issue in drift-detect.yml.
-      - uses: aquasecurity/setup-tfsec@v1.0.0
+      # finding still reported step success). No maintained setup-tfsec action exists
+      # either (tfsec is being deprecated in favor of Trivy) - installing the binary
+      # directly from GitHub Releases and running it ourselves so its own exit code is
+      # trusted, the same fix pattern as the terraform_wrapper issue in drift-detect.yml.
+      - name: Install tfsec
+        run: |
+          tfsec_url=$(curl -s https://api.github.com/repos/aquasecurity/tfsec/releases/latest \
+            | grep '"browser_download_url":.*tfsec-linux-amd64"' \
+            | cut -d '"' -f 4)
+          sudo curl -sSL -o /usr/local/bin/tfsec "$tfsec_url"
+          sudo chmod +x /usr/local/bin/tfsec
+          tfsec --version
 
       # Excludes are accepted-by-design choices for this lab environment, not gaps:
       #   no-public-egress-sgr        - modules/security-group's default egress is 0.0.0.0/0 by design
