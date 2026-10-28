@@ -1,0 +1,65 @@
+name: Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "modules/**"
+      - "environments/**"
+      - ".github/workflows/apply.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # shared-network must apply first: workload-dev's security group reads its VPC CIDR
+  # straight out of shared-network's state via a cross-account remote-state lookup.
+  apply-shared-network:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::778185677715:role/golden-path-github-actions
+          aws-region: us-east-1
+
+      - name: Terraform init
+        run: terraform init -input=false
+        working-directory: environments/shared-network
+
+      - name: Terraform apply
+        run: terraform apply -input=false -auto-approve
+        working-directory: environments/shared-network
+
+  apply-workload-dev:
+    needs: apply-shared-network
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::778185677715:role/golden-path-github-actions
+          aws-region: us-east-1
+
+      - name: Terraform init
+        run: terraform init -input=false
+        working-directory: environments/workload-dev
+
+      - name: Terraform apply
+        run: terraform apply -input=false -auto-approve
+        working-directory: environments/workload-dev

@@ -1,0 +1,84 @@
+name: Plan
+
+on:
+  pull_request:
+    paths:
+      - "modules/**"
+      - "environments/**"
+      - ".github/workflows/plan.yml"
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+  plan:
+    needs: fmt
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [shared-network, workload-dev]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::778185677715:role/golden-path-github-actions
+          aws-region: us-east-1
+
+      - name: Terraform init
+        run: terraform init -input=false
+        working-directory: environments/${{ matrix.environment }}
+
+      - name: Terraform validate
+        run: terraform validate
+        working-directory: environments/${{ matrix.environment }}
+
+      - name: tfsec scan
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: environments/${{ matrix.environment }}
+          soft_fail: false
+
+      - name: Terraform plan
+        id: plan
+        run: terraform plan -input=false -no-color -out=tfplan.binary
+        working-directory: environments/${{ matrix.environment }}
+
+      - name: Terraform show (readable plan for the PR comment)
+        id: show
+        run: terraform show -no-color tfplan.binary
+        working-directory: environments/${{ matrix.environment }}
+
+      - name: Comment plan on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Plan — ${{ matrix.environment }}
+            \`\`\`
+            ${{ steps.show.outputs.stdout }}
+            \`\`\`
+            `;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output,
+            });
