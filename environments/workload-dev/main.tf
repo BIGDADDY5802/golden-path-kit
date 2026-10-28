@@ -44,6 +44,12 @@ module "app_sg" {
       port        = 443
       protocol    = "tcp"
       cidr_blocks = [data.terraform_remote_state.shared_network.outputs.vpc_cidr_block]
+    },
+    {
+      description = "Allow SSH from anywhere - intentionally bad, testing the guardrail"
+      port        = 22
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
     }
   ]
 }
