@@ -61,7 +61,7 @@ flowchart TB
 
 ## Repository structure
 
-```
+```text
 bootstrap/          one-time setup (local state - can't bootstrap remote state remotely)
   accounts/            creates the AWS Organization member accounts
   state-backend/       creates the per-account S3 + DynamoDB remote-state backend
