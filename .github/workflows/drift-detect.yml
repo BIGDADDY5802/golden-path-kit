@@ -15,7 +15,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [shared-network, workload-dev]
+        include:
+          - environment: shared-network
+            account_id: "400484420291"
+          - environment: workload-dev
+            account_id: "556166822095"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +58,17 @@ jobs:
         working-directory: environments/${{ matrix.environment }}
         run: terraform show -no-color tfplan.binary > plan_diff.txt
 
+      # golden-path-github-actions (the OIDC entry point) deliberately has no permissions
+      # of its own - chain into this account's ci-deploy role, which already holds
+      # sns:Publish on the alerts topic, rather than widening the entry-point role.
+      - name: Switch to this account's deploy role for the SNS publish call
+        if: steps.plan.outputs.exitcode == '2'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.account_id }}:role/golden-path-ci-deploy
+          role-chaining: true
+          aws-region: us-east-1
+
       - name: Publish drift alert
         if: steps.plan.outputs.exitcode == '2'
         working-directory: environments/${{ matrix.environment }}
@@ -73,7 +88,7 @@ jobs:
             --message file://sns_message.txt
 
       - name: Fail the job if drift or an error was found
-        if: steps.plan.outputs.exitcode == '1' || steps.plan.outputs.exitcode == '2'
+        if: always() && (steps.plan.outputs.exitcode == '1' || steps.plan.outputs.exitcode == '2')
         run: |
           if [ "${{ steps.plan.outputs.exitcode }}" = "1" ]; then
             echo "::error::terraform plan failed for ${{ matrix.environment }}"
