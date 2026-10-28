@@ -67,8 +67,11 @@ resource "aws_iam_role_policy" "github_actions_assume" {
 
 data "aws_iam_policy_document" "shared_network_trust" {
   statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
+    effect = "Allow"
+    # TagSession: aws-actions/configure-aws-credentials tags the assumed session with
+    # GitHub run metadata by default for CloudTrail traceability, which needs this
+    # in addition to AssumeRole itself.
+    actions = ["sts:AssumeRole", "sts:TagSession"]
 
     principals {
       type = "AWS"
@@ -138,7 +141,7 @@ resource "aws_iam_role_policy" "shared_network_permissions" {
 data "aws_iam_policy_document" "workload_dev_trust" {
   statement {
     effect  = "Allow"
-    actions = ["sts:AssumeRole"]
+    actions = ["sts:AssumeRole", "sts:TagSession"]
 
     principals {
       type = "AWS"
